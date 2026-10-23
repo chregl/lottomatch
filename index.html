@@ -80,21 +80,15 @@ try{var q=JSON.parse(localStorage.getItem(KEY+"_pu")||"[]");if(q&&q.length)pu=q;
 function savePU(){try{localStorage.setItem(KEY+"_pu",JSON.stringify(pu));}catch(e){}}
 function calcMade(){
   var p=false,a=false;
-  items.forEach(function(i){var t=(counts[i.id]||0)+(pick[i.id]||0),L=listed[i.id]||0;if(t>L)p=true;if(L>0)a=true;});
+  items.forEach(function(i){var t=(counts[i.id]||0)+(pick[i.id]||0),L=listed[i.id]||0;if(t!==L)p=true;if(L>0)a=true;});
   made=a&&!p;
 }
-function touch(id,dl){
-  var tot=(counts[id]||0)+(pick[id]||0),it=find(id);
-  if(dl<0&&it&&tot<(listed[id]||0)){
-    for(var k=pu.length-1;k>=0;k--){
-      var ln=null;
-      pu[k].l.forEach(function(x){if(x.n===it.n&&(x.c==="M")===(it.c==="M"))ln=x;});
-      if(ln){ln.q--;pu[k].sum-=it.p;if(ln.q<=0)pu[k].l.splice(pu[k].l.indexOf(ln),1);if(!pu[k].l.length)pu.splice(k,1);break;}
-    }
-    listed[id]=tot;savePU();
-  }
-  calcMade();render();
+function needsUpd(){
+  var u=false;
+  items.forEach(function(i){if((counts[i.id]||0)+(pick[i.id]||0)<(listed[i.id]||0))u=true;});
+  return u;
 }
+function touch(id,dl){calcMade();render();}
 function adj(id,dl){
   if(!cur)return;
   var it=find(id),o=null,ln=null;
@@ -136,7 +130,7 @@ function renderFoot(){
     h+='<div>Total<strong>CHF '+chf(sum(counts))+'</strong></div>';
   }
   h+='</div><div class="acts"><button class="mode'+(single?' on':'')+'" data-a="mode">Einzeln zahlen: '+(single?'AN':'AUS')+'</button>';
-  h+='<button class="'+(made?'pay':'yel')+'" data-a="topu">'+(made?'Abholliste erstellt ✓':'Abholliste erstellen')+'</button>';
+  h+='<button class="'+(made?'pay':'yel')+'" data-a="topu">'+(made?'Abholliste erstellt ✓':(needsUpd()?'Abholliste aktualisieren':'Abholliste erstellen'))+'</button>';
   h+='<button class="rst" data-a="reset">'+(armed?'Sicher? Nochmal tippen':'Zurücksetzen')+'</button></div>';
   if(single){h+='<div class="acts"><button class="pay" data-a="paid">Person bezahlt</button></div><div class="hint">Minus: Artikel zur Person verschieben. Plus: zurück in die offene Bestellung.</div>';}
   f.innerHTML=h;
@@ -208,9 +202,22 @@ document.addEventListener("click",function(e){
     single=!single;renderMain();
   }else if(a==="paid"){Object.keys(pick).forEach(function(k){listed[k]=Math.max(0,(listed[k]||0)-pick[k]);});pick={};calcMade();renderMain();}
   else if(a==="topu"){
+    if(made)return;
+    items.forEach(function(i){
+      var tot=(counts[i.id]||0)+(pick[i.id]||0),n=(listed[i.id]||0)-tot;
+      while(n>0){
+        var dn=false;
+        for(var k=pu.length-1;k>=0&&!dn;k--){
+          var ln=null;
+          pu[k].l.forEach(function(x){if(x.n===i.n&&(x.c==="M")===(i.c==="M"))ln=x;});
+          if(ln){var r=Math.min(n,ln.q);ln.q-=r;pu[k].sum-=r*i.p;n-=r;if(ln.q<=0)pu[k].l.splice(pu[k].l.indexOf(ln),1);if(!pu[k].l.length)pu.splice(k,1);dn=true;}
+        }
+        if(!dn)break;
+      }
+    });
     var l=[],s=0;
     items.forEach(function(i){var tot=(counts[i.id]||0)+(pick[i.id]||0),q=tot-(listed[i.id]||0);if(q>0){l.push({q:q,n:i.n,d:0,c:i.c});s+=q*i.p;}});
-    if(!l.length||made)return;
+    if(!l.length){items.forEach(function(i){listed[i.id]=(counts[i.id]||0)+(pick[i.id]||0);});savePU();calcMade();render();return;}
     var mx=0;pu.forEach(function(o){if(o.num>mx)mx=o.num;});
     var dt=new Date();
     pu.push({id:Date.now(),num:mx+1,t:("0"+dt.getHours()).slice(-2)+":"+("0"+dt.getMinutes()).slice(-2),sum:s,lbl:"",l:l});
