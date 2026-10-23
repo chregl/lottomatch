@@ -57,7 +57,7 @@ footer{background:var(--card);border-top:2px solid var(--bd);padding:10px 10px 1
 <div class="tabs">
   <button id="t1" class="on" data-tab="1">Bestellung</button>
   <button id="t3" data-tab="3">Abholliste</button>
-  <button id="t2" data-tab="2">Preise</button>
+  <button id="t2" data-tab="2">Menükarte</button>
 </div>
 <main id="main"></main>
 <footer id="foot"></footer>
@@ -121,7 +121,7 @@ function renderMain(){
   var h="",M=items.filter(function(i){return i.c==="M";}),G=items.filter(function(i){return i.c!=="M";});
   if(M.length){h+="<h2>Menü</h2>"+M.map(rowHTML).join("");}
   if(G.length){h+="<h2>Getränke</h2>"+G.map(rowHTML).join("");}
-  if(!items.length){h='<p class="hint">Keine Artikel. Im Tab „Preise“ hinzufügen.</p>';}
+  if(!items.length){h='<p class="hint">Keine Artikel. Im Tab „Menükarte“ hinzufügen.</p>';}
   document.getElementById("main").innerHTML=h;
   renderFoot();
 }
