@@ -33,6 +33,7 @@ footer{background:var(--card);border-top:2px solid var(--bd);padding:10px 10px 1
 .acts button{flex:1;min-height:60px;font-size:17px;font-weight:700;border-radius:14px;border:2px solid var(--bd);background:var(--bg);color:var(--tx);padding:6px}
 .acts .mode.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .acts .pay{background:var(--ok);border-color:var(--ok);color:#fff}
+.acts .yel{background:#f5b800;border-color:#f5b800;color:#14181f}
 .acts .rst{background:var(--bad);border-color:var(--bad);color:#fff}
 .hint{font-size:14px;color:var(--mut);margin:6px 4px}
 .ed{display:flex;gap:6px;margin-bottom:8px;align-items:center}
@@ -56,7 +57,7 @@ footer{background:var(--card);border-top:2px solid var(--bd);padding:10px 10px 1
 <div class="tabs">
   <button id="t1" class="on" data-tab="1">Bestellung</button>
   <button id="t3" data-tab="3">Abholliste</button>
-  <button id="t2" data-tab="2">Menükarte</button>
+  <button id="t2" data-tab="2">Preise</button>
 </div>
 <main id="main"></main>
 <footer id="foot"></footer>
@@ -66,15 +67,45 @@ footer{background:var(--card);border-top:2px solid var(--bd);padding:10px 10px 1
 (function(){
 var KEY="lottomatch_v1";
 var def=[
- {id:1,n:"Menü 1",p:18,c:"M"},{id:2,n:"Menü 2",p:16,c:"M"},{id:3,n:"Wurst mit Brot",p:9,c:"M"},
- {id:4,n:"Mineral",p:4,c:"G"},{id:5,n:"Bier",p:5,c:"G"},{id:6,n:"Wein (dl)",p:4.5,c:"G"},{id:7,n:"Kaffee",p:3.5,c:"G"}
+ {id:1,n:"Bratwurst mit Brot",p:9,c:"M"},{id:2,n:"Wienerli mit Brot",p:7,c:"M"},{id:3,n:"Wurstsalat",p:13,c:"M"},
+ {id:4,n:"Schüblig mit Kartoffelsalat",p:14,c:"M"},{id:5,n:"Toast Schinken-Käse",p:7,c:"M"},{id:6,n:"Kuchen",p:4,c:"M"},
+ {id:7,n:"Mineral",p:3.5,c:"G"},{id:8,n:"Süssgetränk",p:4,c:"G"},{id:9,n:"Bier 3 dl",p:4.5,c:"G"},{id:10,n:"Bier 5 dl",p:6,c:"G"},
+ {id:11,n:"Wein 1 dl",p:4.5,c:"G"},{id:12,n:"Wein Flasche",p:28,c:"G"},{id:13,n:"Kaffee",p:3.5,c:"G"},{id:14,n:"Kaffee Schnaps",p:6,c:"G"}
 ];
-var items=def, counts={}, pick={}, single=false, tab=1, armed=false, armT=null, pu=[], armP=null, armPT=null, made=false;
+var items=def, counts={}, pick={}, single=false, tab=1, armed=false, armT=null, pu=[], armP=null, armPT=null, made=false, cur=null, listed={};
 
 try{var s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.items&&s.items.length){items=s.items;}}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify({items:items}));}catch(e){}}
 try{var q=JSON.parse(localStorage.getItem(KEY+"_pu")||"[]");if(q&&q.length)pu=q;}catch(e){}
 function savePU(){try{localStorage.setItem(KEY+"_pu",JSON.stringify(pu));}catch(e){}}
+function calcMade(){
+  var p=false,a=false;
+  items.forEach(function(i){var t=(counts[i.id]||0)+(pick[i.id]||0),L=listed[i.id]||0;if(t>L)p=true;if(L>0)a=true;});
+  made=a&&!p;
+}
+function touch(id,dl){
+  var tot=(counts[id]||0)+(pick[id]||0),it=find(id);
+  if(dl<0&&it&&tot<(listed[id]||0)){
+    for(var k=pu.length-1;k>=0;k--){
+      var ln=null;
+      pu[k].l.forEach(function(x){if(x.n===it.n&&(x.c==="M")===(it.c==="M"))ln=x;});
+      if(ln){ln.q--;pu[k].sum-=it.p;if(ln.q<=0)pu[k].l.splice(pu[k].l.indexOf(ln),1);if(!pu[k].l.length)pu.splice(k,1);break;}
+    }
+    listed[id]=tot;savePU();
+  }
+  calcMade();render();
+}
+function adj(id,dl){
+  if(!cur)return;
+  var it=find(id),o=null,ln=null;
+  pu.forEach(function(x){if(x.id===cur)o=x;});
+  if(!o||!it)return;
+  o.l.forEach(function(x){if(x.n===it.n&&(x.c==="M")===(it.c==="M"))ln=x;});
+  if(dl>0){if(ln){ln.q++;ln.d=0;}else{o.l.push({q:1,n:it.n,d:0,c:it.c});}o.sum+=it.p;}
+  else if(ln){ln.q--;o.sum-=it.p;if(ln.q<=0)o.l.splice(o.l.indexOf(ln),1);}
+  if(!o.l.length){pu=pu.filter(function(x){return x!==o;});cur=null;made=false;}
+  savePU();render();
+}
 function chf(x){return (Math.round(x*100)/100).toFixed(2);}
 function esc(t){return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/"/g,"&quot;");}
 function sum(o){var t=0;items.forEach(function(i){t+=(o[i.id]||0)*i.p;});return t;}
@@ -90,7 +121,7 @@ function renderMain(){
   var h="",M=items.filter(function(i){return i.c==="M";}),G=items.filter(function(i){return i.c!=="M";});
   if(M.length){h+="<h2>Menü</h2>"+M.map(rowHTML).join("");}
   if(G.length){h+="<h2>Getränke</h2>"+G.map(rowHTML).join("");}
-  if(!items.length){h='<p class="hint">Keine Artikel. Im Tab „Menükarte“ hinzufügen.</p>';}
+  if(!items.length){h='<p class="hint">Keine Artikel. Im Tab „Preise“ hinzufügen.</p>';}
   document.getElementById("main").innerHTML=h;
   renderFoot();
 }
@@ -105,7 +136,7 @@ function renderFoot(){
     h+='<div>Total<strong>CHF '+chf(sum(counts))+'</strong></div>';
   }
   h+='</div><div class="acts"><button class="mode'+(single?' on':'')+'" data-a="mode">Einzeln zahlen: '+(single?'AN':'AUS')+'</button>';
-  h+='<button class="pay" data-a="topu">'+(made?'Abholliste erstellt ✓':'Abholliste erstellen')+'</button>';
+  h+='<button class="'+(made?'pay':'yel')+'" data-a="topu">'+(made?'Abholliste erstellt ✓':'Abholliste erstellen')+'</button>';
   h+='<button class="rst" data-a="reset">'+(armed?'Sicher? Nochmal tippen':'Zurücksetzen')+'</button></div>';
   if(single){h+='<div class="acts"><button class="pay" data-a="paid">Person bezahlt</button></div><div class="hint">Minus: Artikel zur Person verschieben. Plus: zurück in die offene Bestellung.</div>';}
   f.innerHTML=h;
@@ -164,26 +195,26 @@ document.addEventListener("click",function(e){
   var a=b.dataset.a,id=b.dataset.id;
   if(a==="p"){
     if(single){if(pick[id]>0){pick[id]--;counts[id]=(counts[id]||0)+1;}}
-    else{counts[id]=(counts[id]||0)+1;made=false;}
+    else{counts[id]=(counts[id]||0)+1;touch(id,1);}
     renderMain();
   }else if(a==="m"){
     if(single){if(counts[id]>0){counts[id]--;pick[id]=(pick[id]||0)+1;}}
-    else if(counts[id]>0){counts[id]--;made=false;}
+    else if(counts[id]>0){counts[id]--;touch(id,-1);}
     renderMain();
   }else if(a==="mode"){
     if(single){ // zurück: Person-Artikel wieder in offene Bestellung
       for(var k in pick){counts[k]=(counts[k]||0)+pick[k];}pick={};
     }
     single=!single;renderMain();
-  }else if(a==="paid"){pick={};renderMain();}
+  }else if(a==="paid"){Object.keys(pick).forEach(function(k){listed[k]=Math.max(0,(listed[k]||0)-pick[k]);});pick={};calcMade();renderMain();}
   else if(a==="topu"){
-    var l=[],s=sum(counts)+sum(pick);
-    items.forEach(function(i){var q=(counts[i.id]||0)+(pick[i.id]||0);if(q)l.push({q:q,n:i.n,d:0,c:i.c});});
+    var l=[],s=0;
+    items.forEach(function(i){var tot=(counts[i.id]||0)+(pick[i.id]||0),q=tot-(listed[i.id]||0);if(q>0){l.push({q:q,n:i.n,d:0,c:i.c});s+=q*i.p;}});
     if(!l.length||made)return;
     var mx=0;pu.forEach(function(o){if(o.num>mx)mx=o.num;});
     var dt=new Date();
     pu.push({id:Date.now(),num:mx+1,t:("0"+dt.getHours()).slice(-2)+":"+("0"+dt.getMinutes()).slice(-2),sum:s,lbl:"",l:l});
-    savePU();made=true;render();
+    items.forEach(function(i){listed[i.id]=(counts[i.id]||0)+(pick[i.id]||0);});savePU();made=true;render();
   }
   else if(a==="tick"){
     pu.forEach(function(o){if(o.id==b.dataset.pid){var x=o.l[+b.dataset.k];x.d=x.d?0:1;}});
@@ -192,12 +223,12 @@ document.addEventListener("click",function(e){
   else if(a==="fin"){
     var pid=b.dataset.pid,part=b.dataset.part,key=pid+part;
     if(armP!==key){armP=key;clearTimeout(armPT);armPT=setTimeout(function(){armP=null;if(tab===3)renderPU();},3000);}
-    else{armP=null;pu.forEach(function(o){if(o.id==pid)o.l=o.l.filter(function(x){return (x.c==="M")!==(part==="M");});});pu=pu.filter(function(o){return o.l.length;});savePU();}
+    else{armP=null;pu.forEach(function(o){if(o.id==pid)o.l=o.l.filter(function(x){return (x.c==="M")!==(part==="M");});});pu=pu.filter(function(o){return o.l.length;});if(cur&&!pu.some(function(o){return o.id===cur;})){cur=null;made=false;}savePU();}
     render();
   }
   else if(a==="reset"){
     if(!armed){armed=true;renderFoot();clearTimeout(armT);armT=setTimeout(function(){armed=false;renderFoot();},3000);}
-    else{armed=false;clearTimeout(armT);counts={};pick={};single=false;made=false;renderMain();}
+    else{armed=false;clearTimeout(armT);counts={};pick={};single=false;made=false;cur=null;listed={};renderMain();}
   }else if(a==="up"||a==="dn"){
     var ix=items.indexOf(find(id)),d=a==="up"?-1:1,cat=items[ix].c==="M",j=ix+d;
     while(j>=0&&j<items.length&&(items[j].c==="M")!==cat)j+=d;
